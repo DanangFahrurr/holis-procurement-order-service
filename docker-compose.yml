@@ -1,0 +1,110 @@
+version: "3.8"
+
+services:
+
+  # SERVICE 1: LARAVEL
+  laravel-service:
+    build:
+      context: ../holis-user-branch-service
+      dockerfile: Dockerfile
+    container_name: holis-laravel-app
+    restart: always
+    ports:
+      - "8001:8000"
+    volumes:
+      - ../holis-user-branch-service:/var/www
+    depends_on:
+      - db-mysql-laravel
+    networks:
+      - holis-network
+  db-mysql-laravel:
+    image: mysql:8.0
+    container_name: holis-mysql-container
+    restart: always
+    environment:
+      MYSQL_DATABASE: holis_user_db
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_PASSWORD: userpassword
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - holis-network
+
+  # SERVICE 2: HASURA
+  hasura-engine:
+    image: hasura/graphql-engine:v2.38.0
+    container_name: holis-hasura-engine
+    restart: always
+    ports:
+      - "8082:8080" 
+    environment:
+      HASURA_GRAPHQL_METADATA_DATABASE_URL: postgres://postgres:postgrespassword@db-postgres-inventory:5432/holis_inventory_db
+      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:postgrespassword@db-postgres-inventory:5432/holis_inventory_db
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true" # Mengaktifkan UI web Hasura
+      HASURA_GRAPHQL_DEV_MODE: "true"
+      HASURA_GRAPHQL_ADMIN_SECRET: myadminsecretkey
+      # Bagian ini untuk integrasi JWT milik Josfi nanti:
+      # HASURA_GRAPHQL_JWT_SECRET: '{"type": "HS256", "key": "rahasia_jwt_josfi_disini"}'
+    depends_on:
+      - db-postgres-inventory
+    networks:
+      - holis-network
+
+  db-postgres-inventory:
+    image: postgres:15-alpine
+    container_name: holis-postgres-container
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: holis_inventory_db
+    ports:
+      - "5433:5432" 
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - holis-network
+
+  # SERVICE 3: Phyton FastAPI
+  fastapi-service:
+    build:
+      context: .  # Karena file docker-compose ini ada di folder kamu sendiri
+      dockerfile: Dockerfile
+    container_name: holis-fastapi-app
+    restart: always
+    ports:
+      - "8003:8000"  # Port luar laptop: 8003
+    volumes:
+      - .:/app
+    depends_on:
+      - message-broker
+      - db-postgres-inventory  # Menunggu DB Irham siap karena worker kamu butuh update data ke sana
+    networks:
+      - holis-network
+
+  message-broker:
+    image: rabbitmq:3-management-alpine
+    container_name: holis-rabbitmq-broker
+    restart: always
+    ports:
+      - "5672:5672"    # Port komunikasi data internal aplikasi
+      - "15672:15672"  # Port luar laptop: 15672 (Dashboard Monitoring RabbitMQ)
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - holis-network
+
+    # JARINGAN & PENYIMPANAN DATA
+    Networks:
+      holis-network:
+        driver: bridge
+
+    Volumes:
+      mysql_data:
+      postgres_data:
+      rabbitmq_data:
