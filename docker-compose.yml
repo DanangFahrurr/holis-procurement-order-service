@@ -46,7 +46,7 @@ services:
       HASURA_GRAPHQL_DEV_MODE: "true"
       HASURA_GRAPHQL_ADMIN_SECRET: myadminsecretkey
       # Bagian ini untuk integrasi JWT milik Josfi nanti:
-      # HASURA_GRAPHQL_JWT_SECRET: '{"type": "HS256", "key": "rahasia_jwt_josfi_disini"}'
+      HASURA_GRAPHQL_JWT_SECRET: '{"type": "HS256", "key": "sangat_rahasia_dan_panjang_sekali_32_karakter_!!"}'
     depends_on:
       - db-postgres-inventory
     networks:
