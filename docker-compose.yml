@@ -70,17 +70,29 @@ services:
   # SERVICE 3: Phyton FastAPI
   fastapi-service:
     build:
-      context: .  # Karena file docker-compose ini ada di folder kamu sendiri
+      context: .
       dockerfile: Dockerfile
     container_name: holis-fastapi-app
     restart: always
     ports:
-      - "8003:8000"  # Port luar laptop: 8003
-    volumes:
-      - .:/app
+      - "8003:8000"
     depends_on:
       - message-broker
-      - db-postgres-inventory  # Menunggu DB Irham siap karena worker kamu butuh update data ke sana
+    networks:
+      - holis-network
+
+  # TAMBAHKAN SERVICE INI UNTUK WORKER KAMU:
+  fastapi-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: holis-python-worker
+    restart: always
+    # Menimpa perintah CMD bawaan Dockerfile untuk menjalankan worker.py
+    command: ["python", "worker.py"] 
+    depends_on:
+      - message-broker
+      - fastapi-service
     networks:
       - holis-network
 
