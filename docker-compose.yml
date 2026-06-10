@@ -46,7 +46,7 @@ services:
       HASURA_GRAPHQL_DEV_MODE: "true"
       HASURA_GRAPHQL_ADMIN_SECRET: myadminsecretkey
       # Bagian ini untuk integrasi JWT milik Josfi nanti:
-      HASURA_GRAPHQL_JWT_SECRET: '{"type": "HS256", "key": "sangat_rahasia_dan_panjang_sekali_32_karakter_!!"}'
+      HASURA_GRAPHQL_JWT_SECRET: '{"type": "HS256", "key": "sangat_rahasia_dan_panjang_sekali_32_karakter_"}'
     depends_on:
       - db-postgres-inventory
     networks:
@@ -111,12 +111,12 @@ services:
     networks:
       - holis-network
 
-    # JARINGAN & PENYIMPANAN DATA
-    Networks:
-      holis-network:
-        driver: bridge
+# JARINGAN & PENYIMPANAN DATA (HURUF KECIL & RATA KIRI)
+networks:
+  holis-network:
+    driver: bridge
 
-    Volumes:
-      mysql_data:
-      postgres_data:
-      rabbitmq_data:
+volumes:
+  mysql_data:
+  postgres_data:
+  rabbitmq_data:

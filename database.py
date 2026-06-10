@@ -4,7 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 # 1. URL KONEKSI: Menuju ke Postgres milik Irham (menggunakan nama service Docker)
-DATABASE_URL = "postgres://postgres:postgrespassword@db-postgres-inventory:5432/holis_inventory_db"
+DATABASE_URL = "postgresql://postgres:postgrespassword@db-postgres-inventory:5432/holis_inventory_db"
 
 # 2. MEMBUAT ENGINE LOGISTIK: Jembatan penghubung ke database
 engine = create_engine(DATABASE_URL)

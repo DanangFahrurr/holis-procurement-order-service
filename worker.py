@@ -1,53 +1,56 @@
-import json
-import time
 import pika
+import json
+from database import SessionLocal
+from models import InventoryItem
 
-def callback(ch, method, properties, body):
-    # 1. MEMBACA PESAN YANG MASUK
-    data_order = json.loads(body)
-    print(f" [x] Mendapat Surat Order Baru: {data_order}")
+def process_order(ch, method, properties, body):
+    # 1. Buka surat pesanan dari RabbitMQ
+    pesanan = json.loads(body)
+    print(f"[x] Mendapat Surat Order Baru: {pesanan}")
     
-    # Simulasi proses jeda waktu logistik/sistem membaca data
-    time.sleep(1) 
+    item_id_pesanan = pesanan.get("item_id")
+    jumlah_dipesan = pesanan.get("quantity")
     
-    # 2. JALUR INTEGRASI KE TEMPAT IRHAM (HASURA)
-    # Di Fase 3 nanti, di sinilah kamu menulis kode koneksi database (SQLAlchemy)
-    # untuk menembak DB Postgres Irham (port 5433)
-    print(f" [⚡] WORKER AKSI: Sukses memproses order_id {data_order['order_id']}.")
-    print(f" [⚡] WORKER AKSI: Otomatis menambah STOK item_id {data_order['item_id']} sebanyak {data_order['quantity']} di Cabang {data_order['branch_id']}.")
-    print("--------------------------------------------------")
-    
-    # Menandakan ke RabbitMQ bahwa pesan sukses diproses dan boleh dihapus dari antrean
-    ch.basic_ack(delivery_tag=method.delivery_tag)
+    # 2. Buka koneksi ke Database Irham
+    db = SessionLocal()
+    try:
+        # Cari barangnya di gudang (Database Postgres)
+        barang = db.query(InventoryItem).filter(InventoryItem.item_id == item_id_pesanan).first()
+        
+        if barang:
+            # 3. Kurangi stoknya!
+            if barang.stock >= jumlah_dipesan:
+                barang.stock -= jumlah_dipesan
+                db.commit() # Simpan perubahan ke database!
+                print(f"[⚡] SUKSES! Stok barang {item_id_pesanan} berhasil dikurangi. Sisa stok: {barang.stock}")
+            else:
+                print(f"[⚠️] GAGAL! Stok barang {item_id_pesanan} tidak cukup! Sisa stok: {barang.stock}, tapi dipesan: {jumlah_dipesan}")
+        else:
+            print(f"[❌] ERROR! Barang dengan ID {item_id_pesanan} tidak ditemukan di database Irham!")
+            
+    except Exception as e:
+        print(f"[💥] Terjadi kesalahan saat update database: {e}")
+        db.rollback() # Batalkan jika ada error
+    finally:
+        db.close() # Tutup koneksi database
+        ch.basic_ack(delivery_tag=method.delivery_tag) # Lapor ke RabbitMQ kalau tugas selesai
 
 def start_worker():
     try:
-        # KONEKSI: Menghubungkan ke RabbitMQ lokal
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+        # Pastikan host-nya sesuai nama container RabbitMQ lu
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-broker'))
         channel = connection.channel()
         
-        # Memastikan nama kotak surat yang ditunggui SAMA PERSIS dengan punya main.py
         queue_name = "holis.procurement.order"
         channel.queue_declare(queue=queue_name, durable=True)
         
-        # Mengatur agar worker hanya menerima 1 pesan dulu sebelum selesai diproses
         channel.basic_qos(prefetch_count=1)
+        channel.basic_consume(queue=queue_name, on_message_callback=process_order)
         
-        # Mendaftarkan fungsi callback sebagai penangan pesan masuk
-        channel.basic_consume(queue=queue_name, on_message_callback=callback)
-        
-        print(' [*] Worker HOLIS menyala. Menunggu surat order masuk... Tekan CTRL+C untuk keluar.')
+        print(f"[*] Worker Logistik siap! Menunggu pesanan di antrean '{queue_name}'...")
         channel.start_consuming()
-    
-    except KeyboardInterrupt:
-        # Menangkap sinyal CTRL+C biar nggak ngeluarin error merah panjang
-        print("\n [!] Worker dimatikan oleh user. Sampai jumpa!")
-        try:
-            connection.close() # Menutup koneksi RabbitMQ dengan rapi
-        except Exception:
-            pass
     except Exception as e:
-        print(f"Worker Error: {e}")
+        print(f"Gagal menyalakan worker: {e}")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     start_worker()
